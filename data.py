@@ -10,6 +10,7 @@ import tensorflow as tf
 import h5py
 import scipy
 from scipy import signal
+import os
 
 def stft2phi(xs,seg=50,reshape=False): 
     '''
@@ -37,18 +38,18 @@ class Data(object):
     '''
     def __init__(self):
         self.datadict = {}
-        self.data = []
         self.dataframe = []
         self.datalabel = []
-        self.train_data = []
-        self.test_data = []
-        self.valid_data = []
         self.gen_frame = None
-        self.gen_data = None
-        self.spec_r = None
-        self.spec_phi = None
-        self.timeDim = 0
-        self.freDim = 0
+        self.gen_spec = None
+        self.spectrum = None
+        self.timeDim = None
+        self.freDim = None
+        self.channel = 2
+        self.electrode_num = 22
+        self.subject_num = 9
+        self.generate_size = 100
+        self.data_dir = './dataset/EEG_gen_dump.pickle'
 
     def load_data(self, filename=None, params=None,create_frame_seg=50):
         self.dataframe = np.zeros((9,288,22,1000))
@@ -70,47 +71,58 @@ class Data(object):
         print("Data fully loaded!")
 
     def create_frame(self, seg=50):
-        (self.spec_r, self.spec_phi) = stft2phi(self.dataframe,seg)
-        self.timeDim = self.spec_r.shape[-1]
-        self.freDim = self.spec_r.shape[-2]
-
+        (spec_r, spec_phi) = stft2phi(self.dataframe,seg)
+        self.timeDim = spec_r.shape[-1]
+        self.freDim = spec_r.shape[-2]
+        self.spectrum = np.zeros((9,288,22,self.freDim,self.timeDim,self.channel))
+        self.spectrum[:,:,:,:,:,0] = spec_r
+        self.spectrum[:,:,:,:,:,1] = spec_phi
+        self.load(self.data_dir)
+        #self.save(self.data_dir)
 
     def get_slice(self, electrode, subject=None, target=None):
         '''get full data matrix by electrode(necessary), subject and target(optional)'''
         if subject > 0:
-            X_r = self.spec_r[subject,:,electrode,:,:]
-            X_phi = self.spec_phi[subject,:,electrode,:,:]
+            X = self.spectrum[subject,:,electrode,:,:,:]
             label = np.asarray(self.datalabel[subject,:].reshape((-1)),dtype=np.int32)
         else:
             print('[Warning]No label or Invalid subject label! Return data in all labels...')
-            X_r = self.spec_r[:,:,electrode,:,:]
-            X_phi = self.spec_phi[:,:,electrode,:,:]
+            X = self.spectrum[:,:,electrode,:,:,:]
             label = np.asarray(self.datalabel.reshape((-1)),dtype=np.int32)
 
-        X_r = X_r.reshape((-1,self.freDim,self.timeDim))
-        X_phi = X_phi.reshape((-1,self.freDim,self.timeDim))
+        X = X.reshape((-1,self.freDim,self.timeDim,self.channel))
         y = np.zeros((len(label),4))
         y[range(len(label)),label-769] = 1
         if target in [769,770,771,772]:
             # select target data
             mask = np.where(label==target)[0].reshape((-1))
-            X_r = X_r[mask,:,:]
-            X_phi = X_phi[mask,:,:]
+            X = X[mask,:,:,:]
             y = y[mask,:]
         else:
             print("[Warning]No label or Invalid target label! Return data in all labels...")
-        return X_r, X_phi, y
+        return X, y
+
+    def load_gen(self,samples,sample_label,gen_id,params=None):
+        self.gen_spec[gen_id,:] = samples
+        self.gen_label[gen_id,:] = sample_label
+        self.gen_frame[gen_id,:] = istftfromphi((self.gen_spec[gen_id,:,:,:,:,0],self.gen_spec[gen_id,:,:,:,:,0]))
+        self.save(self.data_dir)
 
     def save(self, filename):
         f = open(filename,'wb')
-        pickle.dump(self.__dict__, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump((self.gen_spec, self.gen_label, self.gen_frame) , f, protocol=pickle.HIGHEST_PROTOCOL)
         f.close()
         print("Save data object as", filename)
+
     def load(self, filename):
-        f = open(filename,'rb')
-        tmp_dict = pickle.load(f)
-        self.__dict__.update(tmp_dict)
-        print("Loaded data object from", filename)
+        if os.path.isfile(filename):
+            f = open(filename,'rb')
+            self.gen_spec, self.gen_label, self.gen_frame = pickle.load(f)
+            print("Loaded data object from", filename)
+        else:
+            self.gen_spec = np.zeros((3,self.generate_size,22,self.freDim,self.timeDim,self.channel))
+            self.gen_frame = np.zeros((3,self.generate_size,22,1000))
+            self.gen_label = np.zeros((3,self.generate_size))
 
 if __name__ == "__main__":
     ### data processing debug
