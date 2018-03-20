@@ -14,6 +14,9 @@ pp = pprint.PrettyPrinter()
 
 get_stddev = lambda x, k_h, k_w: 1/math.sqrt(k_w*k_h*x.get_shape()[-1])
 
+def show_all_variables():
+    model_vars = tf.trainable_variables()
+    slim.model_analyzer.analyze_vars(model_vars, print_info=True)
 
 def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = False):
     return imread(image_path, is_grayscale), image_size, is_crop, resize_w

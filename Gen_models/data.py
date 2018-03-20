@@ -11,6 +11,9 @@ import h5py
 import scipy
 from scipy import signal
 import os
+from sklearn.model_selection import train_test_split
+from numpy import newaxis
+import braindecode.datautil.signalproc as signalproc
 
 def stft2phi(xs,seg=50,reshape=False): 
     '''
@@ -49,7 +52,29 @@ class Data(object):
         self.electrode_num = 22
         self.subject_num = 9
         self.generate_size = 100
+        self.timeStamp = 1000
         self.data_dir = './dataset/EEG_gen_dump.pickle'
+        self.train = None
+        self.test = None
+
+    def train_test_split(self,mode):
+        #X_train, X_test, y_train, y_test = train_test_split(self.dataframe, self.datalabel, test_size=0.2)
+        if mode['train_obj'] > 0:
+            X = self.dataframe[mode['train_obj']-1,:]
+            y = np.asarray(self.datalabel[mode['train_obj']-1],dtype=np.int32) - 769
+        else:
+            X = self.dataframe.reshape((-1,self.electrode_num, self.timeStamp))
+            y = np.asarray(self.datalabel.reshape((-1)),dtype=np.int32) - 769
+
+        if mode['test_size'] > 0 and mode['train_size'] > 0:
+            test_mask = np.random.choice(X.shape[0], mode['test_size'], replace=False)
+            train_mask = np.random.choice(X.shape[0], mode['train_size'], replace=False)
+            self.train = (X[train_mask],y[train_mask])
+            self.test = (X[test_mask],y[test_mask])
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+            self.train = (X_train, y_train)
+            self.test = (X_test,y_test)
 
     def load_data(self, filename=None, params=None,create_frame_seg=50):
         self.dataframe = np.zeros((9,288,22,1000))
@@ -66,6 +91,11 @@ class Data(object):
             self.datadict['A0'+str(i)+'T'] = (X,y)
             self.dataframe[i-1,:,:,:] = X
             self.datalabel[i-1,:] = y
+        for i in range(9):
+            for j in range(228):
+                self.dataframe[i,j] = np.transpose(signalproc.highpass_cnt(np.transpose(self.dataframe[i,j]), 4, 1000, filt_order=3, axis=0))
+                self.dataframe[i,j] = np.transpose(signalproc.exponential_running_standardize(np.transpose(self.dataframe[i,j]), factor_new=0.001, init_block_size=None, eps=0.0001))
+        print("Data filtered")
         if create_frame_seg:
             self.create_frame(create_frame_seg)
         print("Data fully loaded!")

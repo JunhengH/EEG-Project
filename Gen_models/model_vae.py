@@ -117,7 +117,7 @@ class VAE(object):
         image_dims = [self.input_size_H, self.input_size_W, self.c_dim]
         self.inputs = tf.placeholder(tf.float32, [self.batch_size] + image_dims, name='real_images')
         inputs = self.inputs
-        self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
+        self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z')
 
         mn, sd = self.encoder(inputs)
         self.z = mn + sd * tf.random_normal(tf.shape(sd), 0, 1, dtype=tf.float32)

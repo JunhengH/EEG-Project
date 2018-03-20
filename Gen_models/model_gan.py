@@ -116,7 +116,7 @@ class DCGAN(object):
         self.inputs = tf.placeholder(tf.float32, [self.batch_size] + image_dims, name='real_images')
         inputs = self.inputs
 
-        self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
+        self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z')
 
         # generate and discrimate
         self.G = self.generator(self.z)
@@ -178,8 +178,8 @@ class DCGAN(object):
 
         if config.train:
             for epoch in xrange(config.epoch): #config.epoch
-                #batch_idxs = min(sdata.shape[0], config.train_size) // config.batch_size
-                batch_idxs = 30
+                batch_idxs = min(sdata.shape[0], config.train_size) // config.batch_size
+                #batch_idxs = 30
                 for idx in xrange(0, batch_idxs):
                     #batch_images = sdata[idx * config.batch_size:(idx + 1) * config.batch_size, :] #inputs
                     batch_images = sdata[np.random.choice(sdata.shape[0], self.batch_size, replace=False),:]
